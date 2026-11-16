@@ -29,7 +29,8 @@
   var auth = null, db = null, user = null, unsubscribe = null;
   var syncState = CLOUD ? 'connecting' : 'local';
 
-  var stays = [];
+  var allStays = [];   // everything, including deleted ones (so a re-paste won't bring them back)
+  var stays = [];      // what the app shows (not deleted)
   var viewY, viewM, selected = null;
   var editingId = null, nights = 1;
   var modalHandlers = {};
@@ -61,13 +62,13 @@
     return {
       id: o.id || newId(), name: o.name || '', phone: o.phone || '', note: o.note || '',
       cancelled: !!o.cancelled, nights: n, start: start, end: addDays(start, n),
-      norm: normName(o.name || ''), by: o.updatedBy || ''
+      norm: normName(o.name || ''), by: o.updatedBy || '', deleted: !!o.deleted
     };
   }
   // plain object that gets saved
   function toData(s){
     return { name: s.name, phone: s.phone || '', note: s.note || '', cancelled: !!s.cancelled,
-             nights: s.nights, start: s.start instanceof Date ? iso(s.start) : s.start };
+             nights: s.nights, start: s.start instanceof Date ? iso(s.start) : s.start, deleted: !!s.deleted };
   }
 
   var toastTimer;
@@ -80,18 +81,27 @@
   /* =================================================================
      STORAGE: Firebase (shared) or this phone only
      ================================================================= */
+  function refresh(){ stays = allStays.filter(function(s){ return !s.deleted; }); }
   function localSave(){
-    try { localStorage.setItem(LOCAL_KEY, JSON.stringify(stays.map(function(s){ var d = toData(s); d.id = s.id; return d; }))); } catch(e){}
+    try { localStorage.setItem(LOCAL_KEY, JSON.stringify(allStays.map(function(s){ var d = toData(s); d.id = s.id; return d; }))); } catch(e){}
   }
   function localLoad(){
     try { var raw = localStorage.getItem(LOCAL_KEY); return raw ? JSON.parse(raw).map(makeStay) : []; } catch(e){ return []; }
   }
+  function localDone(){ refresh(); localSave(); renderAll(); return Promise.resolve(); }
+  function findAny(id){ for (var i = 0; i < allStays.length; i++) if (allStays[i].id === id) return allStays[i]; return null; }
   function stamp(d){
     if (CLOUD){
       d.updatedBy = user ? user.email : '';
       d.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
     }
     return d;
+  }
+  // change some fields of a booking (local mode)
+  function localPatch(id, fields){
+    var s = findAny(id); if (!s) return;
+    var d = Object.assign(toData(s), fields, { id: id, updatedBy: s.by });
+    allStays = allStays.map(function(x){ return x.id === id ? makeStay(d) : x; });
   }
 
   // add (id = null) or update a booking
@@ -102,22 +112,20 @@
       return (id ? col.doc(id).set(data) : col.add(data)).catch(fail);
     }
     var fresh = makeStay(Object.assign({}, data, { id: id || newId() }));
-    if (id) stays = stays.map(function(x){ return x.id === id ? fresh : x; });
-    else stays.push(fresh);
-    localSave(); renderAll();
-    return Promise.resolve();
+    if (id) allStays = allStays.map(function(x){ return x.id === id ? fresh : x; });
+    else allStays.push(fresh);
+    return localDone();
   }
   function setCancelled(id, value){
-    var s = getStay(id); if (!s) return Promise.resolve();
     if (CLOUD) return db.collection('bookings').doc(id).update(stamp({ cancelled: value })).catch(fail);
-    s.cancelled = value; localSave(); renderAll();
-    return Promise.resolve();
+    localPatch(id, { cancelled: value });
+    return localDone();
   }
+  // "Delete" hides the booking but remembers it, so pasting an old list won't bring it back
   function deleteStay(id){
-    if (CLOUD) return db.collection('bookings').doc(id).delete().catch(fail);
-    stays = stays.filter(function(x){ return x.id !== id; });
-    localSave(); renderAll();
-    return Promise.resolve();
+    if (CLOUD) return db.collection('bookings').doc(id).update(stamp({ deleted: true })).catch(fail);
+    localPatch(id, { deleted: true });
+    return localDone();
   }
   function addMany(list){
     if (!list.length) return Promise.resolve();
@@ -126,15 +134,26 @@
       list.forEach(function(s){ batch.set(db.collection('bookings').doc(), stamp(toData(s))); });
       return batch.commit().catch(fail);
     }
-    list.forEach(function(s){ stays.push(s); });
-    localSave(); renderAll();
-    return Promise.resolve();
+    list.forEach(function(s){ allStays.push(s); });
+    return localDone();
+  }
+  // changes = [{ id, fields }]
+  function updateMany(changes){
+    if (!changes.length) return Promise.resolve();
+    if (CLOUD){
+      var batch = db.batch();
+      changes.forEach(function(c){ batch.update(db.collection('bookings').doc(c.id), stamp(Object.assign({}, c.fields))); });
+      return batch.commit().catch(fail);
+    }
+    changes.forEach(function(c){ localPatch(c.id, c.fields); });
+    return localDone();
   }
 
   function listen(){
     if (unsubscribe) unsubscribe();
     unsubscribe = db.collection('bookings').onSnapshot({ includeMetadataChanges: true }, function(snap){
-      stays = snap.docs.map(function(doc){ var d = doc.data(); d.id = doc.id; return makeStay(d); });
+      allStays = snap.docs.map(function(doc){ var d = doc.data(); d.id = doc.id; return makeStay(d); });
+      refresh();
       syncState = snap.metadata.fromCache ? 'offline' : 'live';
       renderAll();
     }, function(err){
@@ -147,7 +166,7 @@
   function renderSync(){
     var el = $('syncLabel');
     if (syncState === 'local'){ el.className = 'sync'; el.textContent = 'Saved on this phone only'; }
-    else if (syncState === 'live'){ el.className = 'sync live'; el.textContent = 'Live · shared with family'; }
+    else if (syncState === 'live'){ el.className = 'sync live'; el.textContent = 'Live · shared with family' + (user && user.email === 'test mode' ? ' · TEST MODE (no sign-in)' : ''); }
     else if (syncState === 'offline'){ el.className = 'sync off'; el.textContent = 'Offline · changes will sync later'; }
     else { el.className = 'sync off'; el.textContent = 'Connecting…'; }
   }
@@ -648,24 +667,98 @@
     } catch(e){ $('exportText').select(); toast('Press and hold the list to copy'); }
   });
 
+  /* Smart paste: compares the pasted list with what's saved.
+     - same booking again        -> skipped quietly
+     - same guest, more nights   -> stay is made longer
+     - same guest, now has ❎     -> booking is cancelled
+     - new guest on a free date  -> added
+     - new guest on a date that already has a guest -> skipped (shown in a small "show" list)
+     - booking deleted in the app -> stays deleted
+     Nothing is ever shortened or un-cancelled by a paste. */
+  function planImport(parsed){
+    // working copy, so changes in this paste are seen by later lines
+    var work = allStays.map(function(s){ return { ref: s, start: s.start, end: s.end, cancelled: s.cancelled, deleted: s.deleted, norm: s.norm }; });
+    var plan = { add: [], update: [], same: 0, busy: [] };
+    var changed = {};   // id -> { fields, labels[] }
+
+    parsed.slice().sort(function(a, b){ return a.start - b.start; }).forEach(function(p){
+      // same guest, overlapping or right next to the pasted nights
+      var matches = work.filter(function(w){ return w.norm === p.norm && w.start <= p.end && p.start <= w.end; });
+      matches.sort(function(a, b){ return (a.deleted ? 1 : 0) - (b.deleted ? 1 : 0); });
+      var w = matches[0];
+
+      if (w){
+        if (w.deleted){ plan.same++; return; }                       // deleted on purpose
+        var id = w.ref.id, c = changed[id] || (changed[id] = { fields: {}, labels: [] });
+        if (p.cancelled){
+          if (!w.cancelled && p.start <= w.start && p.end >= w.end){  // whole stay now has ❎
+            w.cancelled = true; c.fields.cancelled = true; c.labels.push('cancelled');
+          } else plan.same++;
+          return;
+        }
+        if (w.cancelled){ plan.same++; return; }                    // never un-cancel from a paste
+        var ns = p.start < w.start ? p.start : w.start;
+        var ne = p.end > w.end ? p.end : w.end;
+        if (+ns !== +w.start || +ne !== +w.end){
+          var before = diffDays(w.start, w.end), after = diffDays(ns, ne);
+          w.start = ns; w.end = ne;
+          c.fields.start = iso(ns); c.fields.nights = after;
+          c.labels = c.labels.filter(function(l){ return l.indexOf('night') < 0; });
+          c.labels.push(plural(before, 'night').replace(/ nights?/, '') + ' → ' + plural(after, 'night'));
+        } else plan.same++;
+        return;
+      }
+
+      // a different guest already has (some of) these nights
+      if (!p.cancelled && work.some(function(x){ return !x.deleted && !x.cancelled && x.start < p.end && p.start < x.end; })){
+        plan.busy.push(p); return;
+      }
+      plan.add.push(p);
+      work.push({ ref: p, start: p.start, end: p.end, cancelled: p.cancelled, deleted: false, norm: p.norm });
+    });
+
+    Object.keys(changed).forEach(function(id){
+      if (changed[id].labels.length) plan.update.push({ id: id, fields: changed[id].fields, labels: changed[id].labels });
+    });
+    return plan;
+  }
+
   $('saveBtn').addEventListener('click', function(){
     var res = parse($('input').value);
-    var fresh = res.stays.filter(function(n){
-      return !stays.some(function(s){ return s.norm === n.norm && same(s.start, n.start); });
-    });
-    addMany(fresh).then(function(){
-      var el = $('saveMsg');
-      el.className = 'msg ok';
-      el.innerHTML = plural(fresh.length, 'new booking') + ' added.';
-      // show what was added, with the year, so it can be checked
-      if (fresh.length){
-        el.innerHTML += '<div class="tip" style="margin-top:6px">' + fresh.slice().sort(function(a, b){ return a.start - b.start; }).map(function(s){
-          return fmt(s.start) + ' ' + s.start.getFullYear() + ' · <span class="cap">' + esc(s.name) + '</span> · ' + plural(s.nights, 'night') + (s.cancelled ? ' (cancelled)' : '');
-        }).join('<br>') + '<br>Wrong year? Tap the booking in Bookings and choose Edit.</div>';
+    var plan = planImport(res.stays);
+    $('saveBtn').disabled = true;
+
+    Promise.all([addMany(plan.add), updateMany(plan.update.map(function(u){ return { id: u.id, fields: u.fields }; }))]).then(function(){
+      $('saveBtn').disabled = false;
+      var el = $('saveMsg'), html = '';
+      var parts = [];
+      if (plan.add.length) parts.push(plan.add.length + ' new');
+      if (plan.update.length) parts.push(plan.update.length + ' updated');
+      if (plan.same) parts.push(plan.same + ' already saved');
+
+      if (!plan.add.length && !plan.update.length){
+        html = '<div class="msg ok">Nothing new. Everything is already saved.</div>';
+      } else {
+        html = '<div class="msg ok">Done · ' + parts.join(' · ') + '</div><div class="tip" style="margin-top:6px">';
+        plan.add.slice().sort(function(a, b){ return a.start - b.start; }).forEach(function(s){
+          html += '+ ' + fmt(s.start) + ' ' + s.start.getFullYear() + ' · <span class="cap">' + esc(s.name) + '</span> · ' + plural(s.nights, 'night') + (s.cancelled ? ' (cancelled)' : '') + '<br>';
+        });
+        plan.update.forEach(function(u){
+          var st = getStay(u.id);
+          html += '✎ <span class="cap">' + esc(st ? st.name : '') + '</span>' + (st ? ' (' + fmt(st.start) + ')' : '') + ': ' + u.labels.join(', ') + '<br>';
+        });
+        html += 'Wrong date? Tap the booking in Bookings and choose Edit.</div>';
+      }
+      if (plan.busy.length){
+        html += '<details style="margin-top:10px"><summary class="tip" style="cursor:pointer">' + plural(plan.busy.length, 'line') + ' skipped: date already has a guest</summary><div class="tip" style="margin-top:4px">' +
+          plan.busy.map(function(s){ return fmt(s.start) + ' · <span class="cap">' + esc(s.name) + '</span>'; }).join('<br>') +
+          '<br>If this guest is real, add them with Add guest.</div></details>';
       }
       if (res.skipped.length)
-        el.innerHTML += '<div class="msg warn">These lines couldn\'t be read (check the date):<br>' + res.skipped.map(esc).join('<br>') + '</div>';
-      if (fresh.length) $('input').value = '';
+        html += '<div class="msg warn">These lines couldn\'t be read (check the date):<br>' + res.skipped.map(esc).join('<br>') + '</div>';
+      el.className = '';
+      el.innerHTML = html;
+      $('input').value = '';
     });
   });
 
@@ -696,6 +789,17 @@
     auth = firebase.auth();
     db = firebase.firestore();
     db.enablePersistence({ synchronizeTabs: true }).catch(function(){}); // works offline too
+
+    // TEST MODE: REQUIRE_SIGN_IN = false in firebase-config.js -> no sign-in page
+    if (typeof REQUIRE_SIGN_IN !== 'undefined' && REQUIRE_SIGN_IN === false){
+      user = { email: 'test mode' };
+      $('signOutBtn').hidden = true;
+      listen();
+      renderAll();
+      showView(startHash());
+      return;
+    }
+
     auth.onAuthStateChanged(function(u){
       user = u;
       if (u){
@@ -705,14 +809,15 @@
         showView(startHash());
       } else {
         if (unsubscribe){ unsubscribe(); unsubscribe = null; }
-        stays = [];
+        allStays = []; stays = [];
         $('signOutBtn').hidden = true;
         showView('login');
       }
       renderAll();
     });
   } else {
-    stays = localLoad();
+    allStays = localLoad();
+    refresh();
     renderAll();
     showView(startHash());
   }
