@@ -114,12 +114,17 @@ button{font-family:inherit}
 /* form */
 label{display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:16px 0 6px}
 label .opt{text-transform:none;letter-spacing:0;font-weight:400}
-input[type=text],input[type=tel],input[type=date],input[type=email],input[type=password]{width:100%;font-size:17px;font-family:inherit;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fff;color:var(--ink);outline:none}
+input[type=text],input[type=tel],input[type=date],input[type=email],input[type=password]{display:block;width:100%;max-width:100%;min-width:0;-webkit-appearance:none;appearance:none;font-size:17px;font-family:inherit;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fff;color:var(--ink);outline:none}
 input:focus{border-color:var(--paddy)}
-.stepper{display:flex;align-items:center;gap:14px}
-.stepper button{width:50px;height:48px;border-radius:12px;border:1px solid var(--line);background:#fff;color:var(--paddy);font-size:24px;cursor:pointer}
-.stepper .num{min-width:56px;text-align:center;font-family:var(--serif);font-size:28px;font-weight:500}
-.stepper .unit{color:var(--muted)}
+.staylen{margin-top:12px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.staylen b{font-family:var(--serif);font-size:26px;font-weight:500;color:var(--paddy-dark)}
+.staylen span{color:var(--muted);font-size:15px}
+.staylen.bad b{font-family:var(--sans);font-size:15px;font-weight:600;color:var(--clay)}
+/* phone date boxes: stop them growing wider than the screen (iPhone) */
+input[type=date]{min-height:50px;text-align:left}
+input[type=date]::-webkit-date-and-time-value{text-align:left}
+input[type=date]::-webkit-calendar-picker-indicator{opacity:.6}
+.card{overflow:hidden}
 .preview{margin-top:16px;background:var(--paddy-soft);border-radius:12px;padding:12px 14px;color:var(--paddy-dark);font-size:15px}
 .preview.warn{background:var(--clay-soft);color:var(--clay)}
 .preview .free{display:block;margin-top:6px;color:var(--paddy);font-size:14px}

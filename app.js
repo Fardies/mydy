@@ -521,10 +521,20 @@
   }
 
   // ---------- add / edit form ----------
-  function setNights(n){
-    nights = Math.max(1, Math.min(60, n));
-    $('nVal').textContent = nights;
-    $('nUnit').textContent = nights === 1 ? 'night' : 'nights';
+  // Set both dates at once: check-in + number of nights
+  function setDates(startD, n){
+    $('fDate').value = iso(startD);
+    $('fOut').value = iso(addDays(startD, Math.max(1, n)));
+    syncNights();
+  }
+  // Work out the nights from the two dates (shown only, not typed)
+  function syncNights(){
+    var a = $('fDate').value, b = $('fOut').value, box = $('fStay');
+    if (a) $('fOut').min = iso(addDays(fromIso(a), 1));
+    nights = (a && b) ? diffDays(fromIso(a), fromIso(b)) : 0;
+    if (!a || !b){ box.className = 'staylen'; box.innerHTML = '<span>Choose both dates</span>'; }
+    else if (nights < 1){ box.className = 'staylen bad'; box.innerHTML = '<b>Check-out must be after check-in</b>'; }
+    else { box.className = 'staylen'; box.innerHTML = '<b>' + plural(nights, 'night') + '</b><span>' + (nights + 1) + ' days · ' + (nights + 1) + 'D' + nights + 'N</span>'; }
     updatePreview();
   }
 
@@ -541,7 +551,8 @@
   function updatePreview(){
     var p = $('fPreview');
     var v = $('fDate').value;
-    if (!v){ p.className = 'preview'; p.textContent = 'Choose a check-in date'; return; }
+    if (!v || nights < 1){ p.className = 'preview'; p.style.display = 'none'; return; }
+    p.style.display = '';
     var startD = fromIso(v), endD = addDays(startD, nights);
     var c = clashes(startD, nights, editingId);
     if (c.length){
@@ -549,11 +560,13 @@
       p.innerHTML = 'Overlaps with <span class="cap">' + c.map(function(s){ return esc(s.name) + ' (' + fmt(s.start) + ' → ' + fmt(s.end) + ')'; }).join(', ') + '</span>';
       return;
     }
-    p.className = 'preview';
-    p.innerHTML = 'Check-in <b>' + fmtLong(startD) + '</b><br>Check-out <b>' + fmtLong(endD) + '</b><br>' + plural(nights, 'night') + ' · ' + (nights + 1) + 'D' + nights + 'N';
+    // no clash: only show a note if a cancelled guest had these dates
     var cx = cancelledOn(startD, nights, editingId);
     if (cx.length){
-      p.innerHTML += '<span class="free"><span class="cap">' + esc(cx.map(function(s){ return s.name; }).join(', ')) + '</span> cancelled these dates, so they\'re free to book.</span>';
+      p.className = 'preview';
+      p.innerHTML = '<span class="cap">' + esc(cx.map(function(s){ return s.name; }).join(', ')) + '</span> cancelled these dates, so they\'re free to book.';
+    } else {
+      p.style.display = 'none';
     }
   }
 
@@ -563,8 +576,7 @@
     $('fSave').textContent = 'Save';
     $('fCancel').style.display = 'none';
     $('fName').value = ''; $('fPhone').value = ''; $('fNote').value = '';
-    $('fDate').value = iso(todayDate());
-    setNights(1);
+    setDates(todayDate(), 1);
   }
 
   function startEdit(id){
@@ -574,8 +586,7 @@
     $('fSave').textContent = 'Save changes';
     $('fCancel').style.display = 'block';
     $('fName').value = s.name; $('fPhone').value = s.phone; $('fNote').value = s.note;
-    $('fDate').value = iso(s.start);
-    setNights(s.nights);
+    setDates(s.start, s.nights);
     $('fMsg').textContent = '';
     go('add');
   }
@@ -605,6 +616,8 @@
     msg.className = 'msg warn';
     if (!$('fName').value.trim()){ msg.textContent = 'Please enter the guest\'s name.'; $('fName').focus(); return; }
     if (!$('fDate').value){ msg.textContent = 'Please choose a check-in date.'; return; }
+    if (!$('fOut').value){ msg.textContent = 'Please choose a check-out date.'; return; }
+    if (nights < 1){ msg.textContent = 'Check-out must be after check-in.'; return; }
     msg.textContent = '';
     var c = clashes(fromIso($('fDate').value), nights, editingId);
     if (c.length){
@@ -617,10 +630,19 @@
     commitForm();
   });
   $('fCancel').addEventListener('click', function(){ resetForm(); $('fMsg').textContent = ''; go('bookings'); });
-  $('nMinus').addEventListener('click', function(){ setNights(nights - 1); });
-  $('nPlus').addEventListener('click', function(){ setNights(nights + 1); });
-  $('fDate').addEventListener('change', updatePreview);
-  $('fDate').addEventListener('input', updatePreview);
+  // when check-in changes, keep the same length of stay (or 1 night)
+  var lastNights = 1;
+  function onCheckIn(){
+    var a = $('fDate').value; if (!a) { syncNights(); return; }
+    var b = $('fOut').value;
+    if (!b || fromIso(b) <= fromIso(a)) $('fOut').value = iso(addDays(fromIso(a), Math.max(1, lastNights)));
+    syncNights();
+  }
+  function onCheckOut(){ syncNights(); if (nights >= 1) lastNights = nights; }
+  $('fDate').addEventListener('change', onCheckIn);
+  $('fDate').addEventListener('input', onCheckIn);
+  $('fOut').addEventListener('change', onCheckOut);
+  $('fOut').addEventListener('input', onCheckOut);
 
   // ---------- calendar + list buttons ----------
   function prevMonth(){ viewM--; if (viewM < 0){ viewM = 11; viewY--; } renderCalendar(); }
@@ -645,8 +667,7 @@
   $('selectedDay').addEventListener('click', function(e){
     if (e.target.id === 'addOnDay' && selected){
       resetForm();
-      $('fDate').value = iso(selected);
-      updatePreview();
+      setDates(selected, 1);
       $('fMsg').textContent = '';
       go('add');
       setTimeout(function(){ $('fName').focus(); }, 300);

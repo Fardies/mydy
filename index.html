@@ -126,13 +126,11 @@
       <label for="fDate">Check-in date</label>
       <input type="date" id="fDate">
 
-      <label>Nights</label>
-      <div class="stepper">
-        <button type="button" id="nMinus" aria-label="Less">−</button>
-        <div class="num" id="nVal">1</div>
-        <button type="button" id="nPlus" aria-label="More">+</button>
-        <span class="unit" id="nUnit">night</span>
-      </div>
+      <label for="fOut">Check-out date</label>
+      <input type="date" id="fOut">
+
+      <!-- worked out automatically from the two dates -->
+      <div class="staylen" id="fStay"></div>
 
       <label for="fPhone">Phone <span class="opt">(optional)</span></label>
       <input type="tel" id="fPhone" placeholder="e.g. 012-3456789">

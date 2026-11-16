@@ -15,4 +15,4 @@ var FIREBASE_CONFIG = {
 /* SIGN-IN SWITCH
    false = TEST MODE: no sign-in page (use test bookings only)
    true  = normal: everyone must sign in (use this for Mom)        */
-var REQUIRE_SIGN_IN = false;
+var REQUIRE_SIGN_IN = false; 
