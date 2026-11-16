@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MYDY Homestay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Firebase (only used when FIREBASE_CONFIG below is filled in) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- small line icons -->
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 7h11M9 12h11M9 17h11M5 7h.01M5 12h.01M5 17h.01"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-in" viewBox="0 0 24 24"><path d="M12 4v10M8 10l4 4 4-4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+</svg>
+
+<div class="wrap">
+
+  <!-- ================= SIGN IN (only when Firebase is on) ================= -->
+  <section class="view" id="v-login" hidden>
+    <header class="hero">
+      <div class="logo">MYDY</div>
+      <div class="tagline">Homestay · Guest Book</div>
+      <svg viewBox="0 0 400 80" preserveAspectRatio="none" aria-hidden="true">
+        <circle cx="338" cy="18" r="11" fill="#e9d48f" opacity=".8"/>
+        <path d="M0 34 C80 20 160 44 240 30 S360 16 400 26 V80 H0Z" fill="#dfe8cd"/>
+        <path d="M0 48 C90 36 170 58 260 44 S370 34 400 42 V80 H0Z" fill="#c3d5a5"/>
+        <path d="M0 60 C100 50 190 70 280 58 S380 52 400 56 V80 H0Z" fill="#9dbb7a"/>
+        <path d="M0 71 C110 64 200 80 300 71 S385 67 400 69 V80 H0Z" fill="#6f9852"/>
+      </svg>
+    </header>
+    <div class="card">
+      <label for="lEmail" style="margin-top:0">Email</label>
+      <input type="email" id="lEmail" autocomplete="username">
+      <label for="lPass">Password</label>
+      <input type="password" id="lPass" autocomplete="current-password">
+      <button class="btn" id="lBtn">Sign in</button>
+      <div class="msg warn" id="lMsg"></div>
+    </div>
+  </section>
+
+  <!-- ================= HOME ================= -->
+  <section class="view" id="v-home" hidden>
+    <header class="hero">
+      <div class="logo">MYDY</div>
+      <div class="tagline">Homestay · Guest Book</div>
+      <div class="heroday" id="todayLabel"></div>
+      <div class="sync" id="syncLabel"></div>
+      <svg viewBox="0 0 400 80" preserveAspectRatio="none" aria-hidden="true">
+        <circle cx="338" cy="18" r="11" fill="#e9d48f" opacity=".8"/>
+        <path d="M0 34 C80 20 160 44 240 30 S360 16 400 26 V80 H0Z" fill="#dfe8cd"/>
+        <path d="M0 48 C90 36 170 58 260 44 S370 34 400 42 V80 H0Z" fill="#c3d5a5"/>
+        <path d="M0 60 C100 50 190 70 280 58 S380 52 400 56 V80 H0Z" fill="#9dbb7a"/>
+        <path d="M0 71 C110 64 200 80 300 71 S385 67 400 69 V80 H0Z" fill="#6f9852"/>
+      </svg>
+    </header>
+
+    <div class="block" id="alertBox"></div>
+
+    <div class="block">
+      <div class="label">Quick check</div>
+      <div class="panel">
+        <div class="daygroup">
+          <div class="dayname">Today<span class="daydate" id="todayDate"></span></div>
+          <div id="todayCard"></div>
+        </div>
+        <div class="daygroup">
+          <div class="dayname">Tomorrow<span class="daydate" id="tomorrowDate"></span></div>
+          <div id="tomorrowCard"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="label">Menu</div>
+      <button class="link main" data-go="add" data-reset="1">
+        <span class="ic"><svg class="ico"><use href="#i-plus"/></svg></span>
+        <span class="tx"><div class="t">Add guest</div><div class="s">Pick a date and number of nights</div></span>
+        <svg class="ico chev"><use href="#i-chev"/></svg>
+      </button>
+      <button class="link" data-go="calendar">
+        <span class="ic"><svg class="ico"><use href="#i-cal"/></svg></span>
+        <span class="tx"><div class="t">Calendar</div><div class="s" id="linkCalSub"></div></span>
+        <svg class="ico chev"><use href="#i-chev"/></svg>
+      </button>
+      <button class="link" data-go="bookings">
+        <span class="ic"><svg class="ico"><use href="#i-list"/></svg></span>
+        <span class="tx"><div class="t">Bookings</div><div class="s" id="linkListSub"></div></span>
+        <svg class="ico chev"><use href="#i-chev"/></svg>
+      </button>
+      <button class="link" data-go="backup">
+        <span class="ic"><svg class="ico"><use href="#i-copy"/></svg></span>
+        <span class="tx"><div class="t">Copy list</div><div class="s">For a WhatsApp backup</div></span>
+        <svg class="ico chev"><use href="#i-chev"/></svg>
+      </button>
+      <button class="link" data-go="import">
+        <span class="ic"><svg class="ico"><use href="#i-in"/></svg></span>
+        <span class="tx"><div class="t">Paste old list</div><div class="s">Add a handwritten list</div></span>
+        <svg class="ico chev"><use href="#i-chev"/></svg>
+      </button>
+      <button class="signout" id="signOutBtn" hidden></button>
+    </div>
+  </section>
+
+  <!-- ================= ADD / EDIT ================= -->
+  <section class="view" id="v-add" hidden>
+    <div class="vhead"><button class="back" data-go="home" aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button><h1 id="formTitle">Add guest</h1></div>
+    <div class="card">
+      <label for="fName" style="margin-top:0">Guest name</label>
+      <input type="text" id="fName" placeholder="e.g. Widuri Abd Wahab" autocomplete="off">
+
+      <label for="fDate">Check-in date</label>
+      <input type="date" id="fDate">
+
+      <label>Nights</label>
+      <div class="stepper">
+        <button type="button" id="nMinus" aria-label="Less">−</button>
+        <div class="num" id="nVal">1</div>
+        <button type="button" id="nPlus" aria-label="More">+</button>
+        <span class="unit" id="nUnit">night</span>
+      </div>
+
+      <label for="fPhone">Phone <span class="opt">(optional)</span></label>
+      <input type="tel" id="fPhone" placeholder="e.g. 012-3456789">
+
+      <label for="fNote">Note <span class="opt">(optional)</span></label>
+      <input type="text" id="fNote" placeholder="e.g. RM50 deposit paid">
+
+      <div class="preview" id="fPreview"></div>
+
+      <button class="btn" id="fSave">Save</button>
+      <button class="btn grey" id="fCancel" style="display:none">Cancel edit</button>
+      <div class="msg" id="fMsg"></div>
+    </div>
+  </section>
+
+  <!-- ================= CALENDAR ================= -->
+  <section class="view" id="v-calendar" hidden>
+    <div class="vhead"><button class="back" data-go="home" aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button><h1>Calendar</h1></div>
+    <div class="card">
+      <div class="calhead">
+        <button class="navbtn" id="prevMonth" aria-label="Previous month"><svg class="ico"><use href="#i-back"/></svg></button>
+        <strong id="monthTitle"></strong>
+        <button class="navbtn" id="nextMonth" aria-label="Next month"><svg class="ico"><use href="#i-chev"/></svg></button>
+      </div>
+      <div class="msum" id="monthSummary"></div>
+      <div class="grid" id="calendar"></div>
+      <div class="legend">
+        <span><i style="background:linear-gradient(90deg,#e3ecd5 33%,#f5ebc8 33% 66%,#e1ebf0 66%)"></i>Colour = guest</span>
+        <span><i style="border:1px dashed #cfc8b5"></i>Cancelled, free to book</span>
+        <span><i style="border:1px solid var(--line)"></i>Free</span>
+      </div>
+    </div>
+    <div class="card" id="selectedDay"></div>
+  </section>
+
+  <!-- ================= BOOKING LIST ================= -->
+  <section class="view" id="v-bookings" hidden>
+    <div class="vhead"><button class="back" data-go="home" aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button><h1>Bookings</h1></div>
+    <div class="card">
+      <div class="calhead">
+        <button class="navbtn" id="listPrev" aria-label="Previous month"><svg class="ico"><use href="#i-back"/></svg></button>
+        <strong id="listTitle"></strong>
+        <button class="navbtn" id="listNext" aria-label="Next month"><svg class="ico"><use href="#i-chev"/></svg></button>
+      </div>
+      <div class="tip" style="margin-bottom:4px">Tap a name to edit, cancel or delete.</div>
+      <div id="monthList"></div>
+    </div>
+  </section>
+
+  <!-- ================= BACKUP ================= -->
+  <section class="view" id="v-backup" hidden>
+    <div class="vhead"><button class="back" data-go="home" aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button><h1>Copy list</h1></div>
+    <div class="card">
+      <div class="tip">This list is made automatically from all bookings. Tap Copy, then paste it into WhatsApp as a backup.</div>
+      <textarea id="exportText" readonly style="margin-top:12px"></textarea>
+      <button class="btn" id="copyBtn">Copy</button>
+    </div>
+  </section>
+
+  <!-- ================= IMPORT ================= -->
+  <section class="view" id="v-import" hidden>
+    <div class="vhead"><button class="back" data-go="home" aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button><h1>Paste old list</h1></div>
+    <div class="card">
+      <div class="tip">Paste a handwritten list, one night per line (e.g. <i>16/11.. widuri</i>). Add ❎ after the name if it was cancelled. Bookings already saved won't be added twice.</div>
+      <textarea id="input" spellcheck="false" style="margin-top:12px" placeholder="Guests 12/2026&#10;1/12.. guest name&#10;2/12.. guest name"></textarea>
+      <button class="btn" id="saveBtn">Add list</button>
+      <div class="msg" id="saveMsg"></div>
+    </div>
+  </section>
+
+</div>
+
+<div class="modal hidden" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<!-- your Firebase settings, then the app -->
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
