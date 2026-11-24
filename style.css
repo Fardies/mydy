@@ -144,3 +144,10 @@ textarea{width:100%;min-height:240px;font-size:15px;font-family:inherit;border:1
 .sheet h3{font-family:var(--serif);font-weight:500;font-size:22px;margin:0 0 6px}
 .toast{position:fixed;left:50%;top:20px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:14.5px;z-index:60;max-width:92%;text-align:center;opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.show{opacity:1}
+
+/* month / all-months switch on Copy list */
+.seg{display:flex;background:#efece4;border-radius:12px;padding:3px;gap:3px}
+.segbtn{flex:1;border:none;background:transparent;border-radius:10px;padding:9px 6px;font-size:14.5px;font-weight:600;color:var(--muted);cursor:pointer}
+.segbtn.active{background:var(--card);color:var(--paddy-dark);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.calhead.dim strong{color:var(--muted)}
+.calhead.dim .navbtn{opacity:.35;pointer-events:none}

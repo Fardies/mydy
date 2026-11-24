@@ -275,10 +275,14 @@
   }
 
   // ---------- list in the old handwritten style (backup) ----------
-  function exportText(){
+  // y, m = one month only. Leave them out for all months.
+  function exportText(y, m){
     var rows = [];
     stays.forEach(function(s){
-      for (var i = 0; i < s.nights; i++) rows.push({ d: addDays(s.start, i), s: s });
+      for (var i = 0; i < s.nights; i++){
+        var d = addDays(s.start, i);
+        if (y === undefined || (d.getFullYear() === y && d.getMonth() === m)) rows.push({ d: d, s: s });
+      }
     });
     rows.sort(function(a, b){ return (a.d - b.d) || ((a.s.cancelled ? 1 : 0) - (b.s.cancelled ? 1 : 0)); });
     var out = [], lastKey = '';
@@ -457,7 +461,7 @@
     assignColors();
     renderHome();
     renderCalendar();
-    $('exportText').value = exportText();
+    renderExport();
     updatePreview();
   }
 
@@ -680,6 +684,24 @@
   $('monthList').addEventListener('click', tapRow);
 
   // ---------- backup + import ----------
+  var expY = todayDate().getFullYear(), expM = todayDate().getMonth(), expAll = false;
+  function renderExport(){
+    $('expTitle').textContent = expAll ? 'All months' : MONTH_FULL[expM] + ' ' + expY;
+    $('expTitle').parentNode.classList.toggle('dim', expAll);
+    $('expOne').classList.toggle('active', !expAll);
+    $('expAll').classList.toggle('active', expAll);
+    var text = expAll ? exportText() : exportText(expY, expM);
+    var lines = text ? text.split('\n').filter(function(l){ return /^\d/.test(l); }).length : 0;
+    $('exportText').value = text || '';
+    $('expInfo').textContent = lines ? plural(lines, 'night') + ' in this list. Tap Copy, then paste it into WhatsApp.'
+                                     : 'No bookings ' + (expAll ? 'yet.' : 'in this month.');
+    $('copyBtn').disabled = !lines;
+  }
+  $('expPrev').addEventListener('click', function(){ expM--; if (expM < 0){ expM = 11; expY--; } renderExport(); });
+  $('expNext').addEventListener('click', function(){ expM++; if (expM > 11){ expM = 0; expY++; } renderExport(); });
+  $('expOne').addEventListener('click', function(){ expAll = false; renderExport(); });
+  $('expAll').addEventListener('click', function(){ expAll = true; renderExport(); });
+
   $('copyBtn').addEventListener('click', function(){
     var text = $('exportText').value;
     try {

@@ -184,8 +184,17 @@
   <section class="view" id="v-backup" hidden>
     <div class="vhead"><button class="back" data-go="home" aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button><h1>Copy list</h1></div>
     <div class="card">
-      <div class="tip">This list is made automatically from all bookings. Tap Copy, then paste it into WhatsApp as a backup.</div>
-      <textarea id="exportText" readonly style="margin-top:12px"></textarea>
+      <div class="calhead">
+        <button class="navbtn" id="expPrev" aria-label="Previous month"><svg class="ico"><use href="#i-back"/></svg></button>
+        <strong id="expTitle"></strong>
+        <button class="navbtn" id="expNext" aria-label="Next month"><svg class="ico"><use href="#i-chev"/></svg></button>
+      </div>
+      <div class="seg">
+        <button class="segbtn active" id="expOne">This month only</button>
+        <button class="segbtn" id="expAll">All months</button>
+      </div>
+      <div class="tip" id="expInfo" style="margin-top:10px"></div>
+      <textarea id="exportText" readonly style="margin-top:10px"></textarea>
       <button class="btn" id="copyBtn">Copy</button>
     </div>
   </section>
